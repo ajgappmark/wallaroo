@@ -12,6 +12,7 @@ actor Main
   var _required_args_are_present: Bool = true
   let _timers: Timers = Timers
   let _senders: Array[Sender] = _senders.create()
+  var _signal_received: Bool = false
 
   new create(env: Env) =>
     _env = env
@@ -137,7 +138,7 @@ actor Main
           SignalHandler(TermHandler(this, report_interval > 0), Sig.int())
           SignalHandler(TermHandler(this, report_interval > 0), Sig.hup())
           if time_limit > 0 then
-            let t3 = Timer(TriggerTerm(term, report_interval > 0), time_limit, 0)
+            let t3 = Timer(TriggerTerm(this, report_interval > 0), time_limit, 0)
             _timers(consume t3)
           end
         end
@@ -157,9 +158,11 @@ actor Main
   be got_signal(verbose: Bool) =>
     // Don't trigger per-sender reports here because they'll automatically
     // happen via closed().
-    None
-    for sender in _senders.values() do
-       sender.dispose()
+    if not _signal_received then
+      _signal_received = true
+      for sender in _senders.values() do
+         sender.dispose()
+      end
     end
 
 actor Sender
@@ -380,18 +383,18 @@ class TriggerReport is TimerNotify
     true
 
 class TriggerTerm is TimerNotify
-  let _term: SignalHandler tag
+  let _main: Main
   let _verbose: Bool
 
-  new iso create(term: SignalHandler tag, verbose: Bool) =>
-    _term = term
+  new iso create(main: Main, verbose: Bool) =>
+    _main = main
     _verbose = verbose
 
   fun ref apply(timer: Timer, count: U64): Bool =>
     if _verbose then
       @printf[I32]("* %s time-limit\n".cstring(), _Time())
     end
-    _term.raise()
+    _main.got_signal(_verbose)
     false
 
 class TermHandler is SignalNotify
