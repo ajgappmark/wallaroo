@@ -180,6 +180,7 @@ actor Sender
   var _start_sec: I64 = 0
   var _start_nsec: I64 = 0
   let _catch_up: Bool
+  var _disposed: Bool = false
 
   new create(ambient: AmbientAuth,
     err: OutStream,
@@ -213,6 +214,9 @@ actor Sender
     _send()
 
   fun ref _send() =>
+    if _disposed then
+      return
+    end
     if not _throttled then
       _count_while_throttled = 0
       try
@@ -277,6 +281,7 @@ actor Sender
 
   be dispose() =>
     _tcp.dispose()
+    _disposed = true
 
 class Notifier is TCPConnectionNotify
   let _err: OutStream
